@@ -1,0 +1,65 @@
+services:
+  app:
+    build:
+      context: .
+    container_name: laravel_app
+    working_dir: /var/www
+    ports:
+      - "8080:80"
+    volumes:
+      - .:/var/www
+    depends_on:
+      - redis
+    environment:
+      - "APP_ENV=local"
+      - "APP_KEY=base64:xxxxxxxxxxxxxxxxxxxxxxxxxx" #
+      - "APP_DEBUG=true"
+      - "QUEUE_CONNECTION=redis"
+      - "CACHE_DRIVER=redis"
+      - "SESSION_DRIVER=redis"
+      - "REDIS_HOST=redis"
+    deploy:
+      resources:
+        limits:
+          cpus: '2.0'  # Limit to 2 CPU cores
+          memory: 2G    # Limit to 2GB of RAM
+    networks:
+      - laravel_network
+
+  redis:
+    image: redis:alpine
+    container_name: redis
+    restart: always
+    ports:
+      - "6379:6379"
+    networks:
+      - laravel_network
+
+  nginx:
+    image: nginx:latest
+    container_name: nginx
+    ports:
+      - "80:80"
+    volumes:
+      - .:/var/www
+      - ./nginx/laravel.conf:/etc/nginx/sites-available/laravel
+    depends_on:
+      - app
+    networks:
+      - laravel_network
+
+  queue_worker:
+    build:
+      context: .
+    container_name: laravel_queue_worker
+    command: php artisan queue:work --daemon --sleep=3 --tries=3
+    depends_on:
+      - app
+      - redis
+    networks:
+      - laravel_network
+    restart: always
+
+networks:
+  laravel_network:
+    driver: bridge
